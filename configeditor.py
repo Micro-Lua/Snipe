@@ -71,6 +71,10 @@ def new():
 
 
 def edit():
+    # Add missing keys if they don't exist
+    if 'DEBUG_MESSAGES' not in config:
+        config['DEBUG_MESSAGES'] = False
+    
     while True:
         choice = input("\nWhat do you want to edit.\n"
                        "1) The .ROBLOSECURITY cookie\n"
@@ -83,22 +87,22 @@ def edit():
                        "> "
                        )
 
-        if int(choice) == 1:
+        if choice == '1':
             while 1:
                 config["cookie"] = input("Full roblox cookie: ")
                 if len(config["cookie"].split(".ROBLOSECURITY=_")) > 1:
                     break
                 print("You provided the wrong cookie. Please follow the instructions on the github page.")
 
-        elif int(choice) == 2:
+        elif choice == '2':
             config["webhook"] = input("Webhook url: ")
             config['pingall'] = True if input("Ping everyone Y/N: ").lower() == "y" else False
 
-        elif int(choice) == 3:
+        elif choice == '3':
             asset_id = input("The asset id of the item you want to configure: ")
 
             item_idx = -1
-            for idx, item in enumerate(config['limiteds']):
+            for idx, item in enumerate(config.get('limiteds', [])):
                 if item['asset'] == asset_id:
                     item_idx = idx
                     break
@@ -111,11 +115,14 @@ def edit():
             config['limiteds'][item_idx]['buyagain'] = True if input(
                 "Do you want to buy the item multiple times Y/N: ").lower() == 'y' else False
 
-        elif int(choice) == 4:
-            config['pingall'] = True if input(
+        elif choice == '4':
+            config['DEBUG_MESSAGES'] = True if input(
                 "Do you want to log all gotten prices in the console? Y/N: ").lower() == "y" else False
 
-        elif int(choice) == 5:
+        elif choice == '5':
+            if 'limiteds' not in config:
+                config['limiteds'] = []
+                
             config['limiteds'].append({})
 
             asset_id = input("The asset id of the limited: ")
@@ -128,7 +135,7 @@ def edit():
             out  = r.get(f"https://www.roblox.com/catalog/{asset_id}").text
             config['limiteds'][-1]["productid"] = out.split("data-product-id=\"")[1].split("\"")[0]
 
-        elif int(choice) == 6:
+        elif choice == '6':
             config["PROXIES"] = []
             proxy_list = input("What proxylist do you want to use: ")
             if proxy_list:
@@ -143,7 +150,7 @@ def edit():
                                                 "2) Use all proxies to check (Fast)\n"
                                                 "Choice (1-2): "))
 
-        elif int(choice) == 7:
+        elif choice == '7':
             with open("limiteds.json", 'w') as f:
                 json.dump(config, f, indent=4)
 
@@ -153,7 +160,15 @@ def edit():
 
 
 def main():
-    if config == {}:
+    # Ensure all required keys exist in config
+    if 'DEBUG_MESSAGES' not in config:
+        config['DEBUG_MESSAGES'] = False
+    if 'PROXIES' not in config:
+        config['PROXIES'] = []
+    if 'limiteds' not in config:
+        config['limiteds'] = []
+    
+    if config.get('cookie') is None:
         new()
         exit(0)
 
@@ -162,10 +177,10 @@ def main():
                    "2) Make a new config\n"
                    "> ")
 
-    if int(choice) == 1:
+    if choice == '1':
         edit()
 
-    elif int(choice) == 2:
+    elif choice == '2':
         new()
 
 
