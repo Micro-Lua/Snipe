@@ -36,13 +36,26 @@ with open("limiteds.json", "r") as f:
 
 print("Logging in..")
 
-debugging = config['DEBUG_MESSAGES']
+# Use .get() with default values for all config keys
+debugging = config.get('DEBUG_MESSAGES', False)
+# Ensure cookie exists
+if 'cookie' not in config or '.ROBLOSECURITY=_' not in config.get('cookie', ''):
+    print("ERROR: Cookie not found in config. Please run configeditor.py first.")
+    input("Press Enter to exit...")
+    exit(1)
+
 roblosec = "_"+config["cookie"].split(".ROBLOSECURITY=_")[1]
 results = []
 perm_results = []
 rate_limit = False
 proxy_rate_limit = False
-ratelimit_multi = 60/(200/len(config['limiteds']))
+
+# Calculate ratelimit_multi safely
+limiteds = config.get('limiteds', [])
+if len(limiteds) > 0:
+    ratelimit_multi = 60/(200/len(limiteds))
+else:
+    ratelimit_multi = 0.3  # Default value when no limiteds
 
 # This function gets your x-csrf token from roblox. This is needed to buy the limited.
 def get_xtoken():
@@ -136,7 +149,7 @@ def snipe_item(data, proxy=None, sleep_time=-1):
     print("Buying limited..")
 
     headers = {
-        'cookie': config['cookie'],
+        'cookie': config.get('cookie', ''),
         "x-csrf-token": x_token
     }
     payload = {
@@ -176,11 +189,12 @@ def snipe_item(data, proxy=None, sleep_time=-1):
                         f"Headers: \n"
                         f"{check.headers}\n"
                         f"Bought for: {price}\n\n\n")
-            if config["webhook"] != "":
-                r.post(config["webhook"], data={'content': f"{'@everyone' if config['pingall'] else ''} | Just bought "
+            webhook = config.get("webhook", "")
+            if webhook != "":
+                r.post(webhook, data={'content': f"{'@everyone' if config.get('pingall', False) else ''} | Just bought "
                                                         f"https://www.roblox.com/catalog/{data['asset']} for {price} robux"})
 
-            if not data['buyagain']:
+            if not data.get('buyagain', False):
                 config['limiteds'].remove(data)
                 with open('limiteds.json', 'w') as f:
                     dump(config, f, indent=4)
@@ -205,9 +219,10 @@ def snipe_item(data, proxy=None, sleep_time=-1):
                     f"Sent info: \n{payload}\n\n"
                     f"Headers: \n"
                     f"{check.headers}\n\n\n")
-            if config["webhook"] != "":
-                r.post(config["webhook"], data={
-                    'content': f"{'@everyone' if config['pingall'] else ''} | Something went wrong whilst buying"
+            webhook = config.get("webhook", "")
+            if webhook != "":
+                r.post(webhook, data={
+                    'content': f"{'@everyone' if config.get('pingall', False) else ''} | Something went wrong whilst buying"
                                 f" https://www.roblox.com/catalog/{data['asset']} for {price}. "
                                 f"See logs for more information."})
 
@@ -228,36 +243,48 @@ def snipe_item(data, proxy=None, sleep_time=-1):
                     f"Send info: \n{payload}\n\n"
                     f"Headers: \n"
                     f"{check.headers}\n\n\n")
-        if config["webhook"] != "":
-            r.post(config["webhook"], data={'content': f"{'@everyone' if config['pingall'] else ''} | Something went wrong whilst buying "
+        webhook = config.get("webhook", "")
+        if webhook != "":
+            r.post(webhook, data={'content': f"{'@everyone' if config.get('pingall', False) else ''} | Something went wrong whilst buying "
                                                     f"https://www.roblox.com/catalog/{data['asset']} for {price}. See the logs for more information."})
 
 # Initializes proxy threads
-if len(config.get("PROXIES", [])) > 0:
-    current_proxy = config["PROXIES"][0]
+proxies_list = config.get("PROXIES", [])
+if len(proxies_list) > 0:
+    current_proxy = proxies_list[0]
     current_proxy_idx = 0
     requests_made = 0
+
 def init_proxies():
     global current_proxy, requests_made, current_proxy_idx
     threads = []
+    proxies_list = config.get("PROXIES", [])
+    limiteds = config.get('limiteds', [])
 
-    if config["PROXY_USE"] == 1:
+    if not proxies_list or not limiteds:
+        return threads
+
+    proxy_use = config.get("PROXY_USE", 1)
+    
+    if proxy_use == 1:
         if requests_made >= 200:
             current_proxy_idx += 1
-            current_proxy = config["PROXIES"][current_proxy_idx]
+            if current_proxy_idx >= len(proxies_list):
+                current_proxy_idx = 0
+            current_proxy = proxies_list[current_proxy_idx]
         elif proxy_rate_limit:
             current_proxy_idx += 1
-            if current_proxy_idx > len(config["PROXIES"]):
+            if current_proxy_idx >= len(proxies_list):
                 current_proxy_idx = 0
-            current_proxy = config["PROXIES"][current_proxy_idx]
+            current_proxy = proxies_list[current_proxy_idx]
 
-        for i in range(len(config['limiteds'])):
-            threads.append(Thread(target=snipe_item, args=(config['limiteds'][i], current_proxy, 0)))
+        for i in range(len(limiteds)):
+            threads.append(Thread(target=snipe_item, args=(limiteds[i], current_proxy, 0)))
 
-    elif config["PROXY_USE"] == 2:
-        for proxy in config["PROXIES"]:
-            for i in range(len(config['limiteds'])):
-                threads.append(Thread(target=snipe_item, args=(config['limiteds'][i], proxy,)))
+    elif proxy_use == 2:
+        for proxy in proxies_list:
+            for item in limiteds:
+                threads.append(Thread(target=snipe_item, args=(item, proxy,)))
 
     for thread in threads:
         thread.start()
@@ -271,7 +298,9 @@ def main():
     x_get.start()
 
     reqs_made = 0
-    while len(config['limiteds']) > 0:
+    limiteds = config.get('limiteds', [])
+    
+    while len(limiteds) > 0:
         times_taken = []
 
         if rate_limit:
@@ -285,14 +314,14 @@ def main():
         threads = []
 
         # Initialize all the threads without proxies
-        for i in range(len(config['limiteds'])):
-            threads.append(Thread(target=snipe_item, args=(config['limiteds'][i],)))
+        for item in limiteds:
+            threads.append(Thread(target=snipe_item, args=(item,)))
 
         start = perf_counter()
         for thread in threads:
             thread.start()
 
-        #Initialize proxies
+        # Initialize proxies
         if len(config.get("PROXIES", [])) > 0:
             threads.extend(init_proxies())
 
@@ -308,6 +337,8 @@ def main():
         # sleep(time_taken*0.6)#to_sleep if to_sleep >= 0 else 0)
 
         results = perm_results[:]
+        # Update limiteds in case it was modified
+        limiteds = config.get('limiteds', [])
 
 
 if __name__ == '__main__':
