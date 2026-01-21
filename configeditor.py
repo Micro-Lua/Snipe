@@ -12,7 +12,7 @@ except FileNotFoundError:
     pass
 
 print("Checking for updates...")
-script = r.get("https://raw.githubusercontent.com/J3ldo/LimitedSniper/main/configeditor.py").text
+script = r.get("https://raw.githubusercontent.com/Micro-Lua/Snipe/refs/heads/main/configeditor.py").text
 try:
     with open("configeditor.py", "r") as f:
         if f.read() != script:
